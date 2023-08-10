@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_compile_definitions(WIN32_LEAN_AND_MEAN)
 
+find_path(XORSTR_INCLUDE_DIRS "xorstr.hpp")
+
 add_library(${PROJECT_NAME} SHARED
     src/main.cpp
     src/game.cpp
@@ -14,8 +16,9 @@ add_library(${PROJECT_NAME} SHARED
     src/hooks/hooks.cpp
     src/hooks/level_init.cpp
     src/interfaces.cpp
+    src/schemas.cpp
     src/utility/memory.cpp
     src/utility/pe.cpp
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${XORSTR_INCLUDE_DIRS} include)

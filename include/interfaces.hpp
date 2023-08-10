@@ -1,7 +1,6 @@
 #pragma once
 
 #include "sdk/sdk.hpp"
-#include "utility/fnv1a.hpp"
 
 namespace interfaces {
     bool initialize();

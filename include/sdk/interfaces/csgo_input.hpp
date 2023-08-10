@@ -5,7 +5,7 @@ namespace sdk {
     public:
         static UserCmd* get_user_cmd(sdk::CSGOInput* input, const std::int32_t slot) {
             const auto sequence_number = *reinterpret_cast<std::uint32_t*>(
-                0x4350 * slot + reinterpret_cast<std::uint64_t>(input) + 17428
+                0x4350 * slot + reinterpret_cast<std::uint64_t>(input) + 0x4414
             );
 
             const auto v1 = reinterpret_cast<std::uint64_t>(input) + 0x70 * (sequence_number % 150);

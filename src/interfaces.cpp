@@ -40,7 +40,7 @@ namespace interfaces {
 
     bool initialize() {
         {
-            const auto client_mode_shared = memory::find_pattern(L"client.dll", "48 8D 0D ? ? ? ? 48 03 C1 48 83 C4").abs().as<void*>();
+            const auto client_mode_shared = memory::find_pattern(xorstr_(L"client.dll"), xorstr_("48 8D 0D ? ? ? ? 48 03 C1 48 83 C4")).abs().as<void*>();
 
             if (client_mode_shared == nullptr)
                 return false;
@@ -49,12 +49,21 @@ namespace interfaces {
         }
 
         {
-            const auto csgo_input = memory::find_pattern(L"client.dll", "48 8D 0D ? ? ? ? E8 ? ? ? ? 33 C9 C7 05").abs().as<void*>();
+            const auto csgo_input = memory::find_pattern(xorstr_(L"client.dll"), xorstr_("48 8D 0D ? ? ? ? E8 ? ? ? ? 33 C9 C7 05")).abs().as<void*>();
 
             if (csgo_input == nullptr)
                 return false;
 
             set_interface<sdk::CSGOInput>(csgo_input);
+        }
+
+        {
+            const auto cvar = memory::find_pattern(xorstr_(L"tier0.dll"), xorstr_("4C 8D 3D ? ? ? ? 0C 01")).abs().as<void*>();
+
+            if (cvar == nullptr)
+                return false;
+
+            set_interface<sdk::CVar>(cvar);
         }
 
         const interface_bind_map_t interface_bind_map = {
@@ -78,7 +87,7 @@ namespace interfaces {
                 continue;
 
             const auto create_interface_export = Address(
-                reinterpret_cast<std::uint64_t>(GetProcAddress(module_handle, "CreateInterface"))
+                reinterpret_cast<std::uint64_t>(GetProcAddress(module_handle, xorstr_("CreateInterface")))
             );
 
             if (!create_interface_export)
@@ -87,33 +96,30 @@ namespace interfaces {
             if (*reinterpret_cast<std::uint8_t*>(create_interface_export.address()) != 0x4C)
                 continue;
 
-            auto interface_reg = create_interface_export.abs().get<InterfaceReg*>();
-
-            if (interface_reg == nullptr)
-                continue;
-
             const auto get_interface_name = [](const InterfaceReg* interface_reg) -> std::string {
                 auto interface_name = std::string(interface_reg->name);
 
                 // Convert the interface name to lowercase.
-                std::ranges::transform(interface_name, interface_name.begin(), [](const auto& c) {
-                    return std::tolower(c);
-                });
+                std::ranges::transform(interface_name, interface_name.begin(), std::tolower);
 
                 // Remove the first character from the interface name if it is 'v'.
                 if (interface_name.front() == 'v')
                     interface_name.erase(interface_name.begin());
 
                 // Remove the last three characters from the interface name.
-                if (interface_name.size() >= 3)
-                    interface_name.erase(interface_name.end() - 3, interface_name.end());
+                interface_name.erase(interface_name.end() - 3, interface_name.end());
 
-                // Remove the last character from the interface name if it is 'v'.
-                if (interface_name.back() == 'v')
+                // Check if the last character is 'v' or '_' and remove it.
+                while (interface_name.back() == 'v' || interface_name.back() == '_')
                     interface_name.pop_back();
 
                 return interface_name;
             };
+
+            auto interface_reg = create_interface_export.abs().get<InterfaceReg*>();
+
+            if (interface_reg == nullptr)
+                continue;
 
             while (interface_reg != nullptr) {
                 const auto interface_name = get_interface_name(interface_reg);

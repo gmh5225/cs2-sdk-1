@@ -1,5 +1,6 @@
 #include "hooks/hooks.hpp"
 #include "interfaces.hpp"
+#include "schemas.hpp"
 
 #include <iostream>
 #include <thread>
@@ -17,6 +18,9 @@ unsigned long __stdcall on_attach(void* thread_parameter) {
 
     do {
         if (!interfaces::initialize())
+            break;
+
+        if (!schemas::initialize())
             break;
 
         if (!hooks::setup())
