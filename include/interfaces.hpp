@@ -5,7 +5,7 @@
 namespace interfaces {
     bool initialize();
 
-    void* get_interface_impl(fnv1a::hash_t hash);
+    void* get_interface_impl(fnv1a::Hash hash);
 
     template <class T>
     __forceinline constexpr T* get_interface() {

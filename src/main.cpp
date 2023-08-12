@@ -2,7 +2,8 @@
 #include "interfaces.hpp"
 #include "schemas.hpp"
 
-#include <iostream>
+#include <spdlog/spdlog.h>
+
 #include <thread>
 
 #include <Windows.h>
@@ -27,8 +28,8 @@ unsigned long __stdcall on_attach(void* thread_parameter) {
             break;
 
 #ifdef _DEBUG
-        std::cout << "Initialized!\n";
-        std::cout << "Press [DELETE] to unload.\n";
+        spdlog::info("Initialized!");
+        spdlog::info("Press [DELETE] to unload.");
 #endif
 
         while (!(GetAsyncKeyState(VK_DELETE) & 0x1))

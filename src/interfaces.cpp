@@ -3,14 +3,15 @@
 #include "utility/memory.hpp"
 #include "utility/pe.hpp"
 
-#include <algorithm>
+#include <spdlog/spdlog.h>
+
 #include <unordered_map>
 
-#include <Windows.h>
+#include <d3d11.h>
 
 namespace interfaces {
-    using interface_bind_t = std::pair<fnv1a::hash_t, fnv1a::hash_t>;
-    using interface_bind_map_t = std::unordered_map<fnv1a::hash_t, fnv1a::hash_t>;
+    using InterfaceBind = std::pair<fnv1a::Hash, fnv1a::Hash>;
+    using InterfaceBindMap = std::unordered_map<fnv1a::Hash, fnv1a::Hash>;
 
     struct InterfaceReg {
         void* (*create_interface_fn)();
@@ -18,18 +19,18 @@ namespace interfaces {
         InterfaceReg* next;
     };
 
-    std::unordered_map<fnv1a::hash_t, void*> interface_map;
+    std::unordered_map<fnv1a::Hash, void*> interface_map;
 
     template <class T, std::size_t N>
-    constexpr interface_bind_t bind_interface(const char(&name)[N]) {
+    constexpr InterfaceBind bind_interface(const char(&name)[N]) {
         return { fnv1a::fnv_hash_const(name), fnv1a::fnv_hash_type<T>() };
     }
 
-    void* get_interface_impl(const fnv1a::hash_t hash) {
+    void* get_interface_impl(const fnv1a::Hash hash) {
         return interface_map[hash];
     }
 
-    void set_interface_impl(const fnv1a::hash_t hash, void* ptr) {
+    void set_interface_impl(const fnv1a::Hash hash, void* ptr) {
         interface_map[hash] = ptr;
     }
 
@@ -66,7 +67,22 @@ namespace interfaces {
             set_interface<sdk::CVar>(cvar);
         }
 
-        const interface_bind_map_t interface_bind_map = {
+        {
+            const auto swap_chain = memory::find_pattern(xorstr_(L"rendersystemdx11.dll"), xorstr_("48 8B 0D ? ? ? ? 48 85 C9 75 09"))
+                .abs()
+                .get()
+                .add(0x8)
+                .get(2)
+                .add(0x178)
+                .get<IDXGISwapChain*>();
+
+            if (swap_chain == nullptr)
+                return false;
+
+            set_interface<IDXGISwapChain>(swap_chain);
+        }
+
+        const InterfaceBindMap interface_bind_map = {
             bind_interface<sdk::GameResourceService>("gameresourceservice"),
             bind_interface<sdk::Localize>("localize"),
             bind_interface<sdk::ResourceSystem>("resourcesystem"),
@@ -96,36 +112,57 @@ namespace interfaces {
             if (*reinterpret_cast<std::uint8_t*>(create_interface_export.address()) != 0x4C)
                 continue;
 
-            const auto get_interface_name = [](const InterfaceReg* interface_reg) -> std::string {
-                auto interface_name = std::string(interface_reg->name);
-
-                // Convert the interface name to lowercase.
-                std::ranges::transform(interface_name, interface_name.begin(), std::tolower);
-
-                // Remove the first character from the interface name if it is 'v'.
-                if (interface_name.front() == 'v')
-                    interface_name.erase(interface_name.begin());
-
-                // Remove the last three characters from the interface name.
-                interface_name.erase(interface_name.end() - 3, interface_name.end());
-
-                // Check if the last character is 'v' or '_' and remove it.
-                while (interface_name.back() == 'v' || interface_name.back() == '_')
-                    interface_name.pop_back();
-
-                return interface_name;
-            };
-
             auto interface_reg = create_interface_export.abs().get<InterfaceReg*>();
 
             if (interface_reg == nullptr)
                 continue;
 
+            const auto clean_interface_name = [](std::string& name) -> std::string {
+                // Convert the name to lowercase.
+                std::transform(name.begin(), name.end(), name.begin(), [](const auto& c) {
+                    return std::tolower(c);
+                });
+
+                // Remove the first character if it's `v`.
+                if (name.front() == 'v')
+                    name.erase(name.begin());
+
+                // Remove the last three characters.
+                name.erase(name.end() - 3, name.end());
+
+                // Remove the last character if it's `v` or `_`.
+                while (name.back() == 'v' || name.back() == '_')
+                    name.pop_back();
+
+                return name;
+            };
+
             while (interface_reg != nullptr) {
-                const auto interface_name = get_interface_name(interface_reg);
+                void* interface_pointer = interface_reg->create_interface_fn();
+
+                auto interface_name = std::string(interface_reg->name);
+
+#ifdef _DEBUG
+                const auto interface_pointer_rva = reinterpret_cast<std::uint64_t>(interface_pointer) - reinterpret_cast<std::uint64_t>(module_handle);
+
+                #pragma warning(push)
+                #pragma warning(disable: 4244)
+                const auto module_name = std::string(module.name.begin(), module.name.end());
+                #pragma warning(pop)
+
+                spdlog::info(
+                    "Found interface {} @ 0x{:X} ({} + 0x{:X}).",
+                    interface_name,
+                    reinterpret_cast<std::uint64_t>(interface_pointer),
+                    module_name,
+                    interface_pointer_rva
+                );
+#endif
+
+                clean_interface_name(interface_name);
 
                 if (const auto it = interface_bind_map.find(fnv1a::fnv_hash(interface_name.c_str())); it != interface_bind_map.end())
-                    set_interface_impl(it->second, interface_reg->create_interface_fn());
+                    set_interface_impl(it->second, interface_pointer);
 
                 interface_reg = interface_reg->next;
             }

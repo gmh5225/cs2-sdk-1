@@ -2,7 +2,7 @@
 #include "interfaces.hpp"
 
 namespace schemas {
-    std::unordered_map<fnv1a::hash_t, std::uint16_t> schema_map;
+    std::unordered_map<fnv1a::Hash, std::uint16_t> schema_map;
 
     bool initialize() {
         const auto type_scopes = interfaces::get<sdk::SchemaSystem>()->type_scopes;
@@ -45,7 +45,7 @@ namespace schemas {
         return !schema_map.empty();
     }
 
-    std::uint16_t get_offset_impl(const fnv1a::hash_t hash) {
+    std::uint16_t get_offset_impl(const fnv1a::Hash hash) {
         return schema_map[hash];
     }
 }
